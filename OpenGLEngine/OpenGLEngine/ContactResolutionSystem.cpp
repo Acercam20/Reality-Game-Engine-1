@@ -1,6 +1,7 @@
 #include "ContactResolutionSystem.h"
 #include "TransformComponentV2.h"
-#include "RigidBodyComponent.h"
+#include "RigidbodyComponent.h"
+#include "ForceAndTorqueAccumulatorComponent.h"
 #include <string>
 
 namespace Reality
@@ -23,8 +24,10 @@ namespace Reality
 	void ContactResolutionSystem::ResolvePenetration(ContactEvent & contact)
 	{
 		// Get Rigidbodies involved
-		auto& rbA = contact.entityA.getComponent<RigidBodyComponent>();
-		auto& rbB = contact.entityB.getComponent<RigidBodyComponent>();
+		auto& rbA = contact.entityA.getComponent<RigidbodyComponent>();
+		auto& rbB = contact.entityB.getComponent<RigidbodyComponent>();
+		auto& ftA = contact.entityA.getComponent<ForceAndTorqueAccumulatorComponent>();
+		auto& ftB = contact.entityB.getComponent<ForceAndTorqueAccumulatorComponent>();
 		auto& transformA = contact.entityA.getComponent<TransformComponentV2>();
 		auto& transformB = contact.entityB.getComponent<TransformComponentV2>();
 
@@ -36,8 +39,8 @@ namespace Reality
 		Vector3 relativePositionB = contact.worldPoint2 - transformB.GetPosition();
 		contact.normal *= -1;
 		// World Inertia Tensors
-		Mat3 worldInvInertiaTensorA = rbA.worldInverseInertiaTensor(transformA.GetRotationMatrix());
-		Mat3 worldInvInertiaTensorB = rbB.worldInverseInertiaTensor(transformB.GetRotationMatrix());
+		Mat3 worldInvInertiaTensorA = ftA.GetWorldInverseInertiaTensor(transformA.GetRotationMatrix());
+		Mat3 worldInvInertiaTensorB = ftB.GetWorldInverseInertiaTensor(transformB.GetRotationMatrix());
 
 		float totalInertia = 0;
 
@@ -46,7 +49,7 @@ namespace Reality
 		angularInertiaWorldA = glm::cross(angularInertiaWorldA, relativePositionA);
 
 		float angularInertiaA = glm::dot(angularInertiaWorldA, contact.normal);
-		float linearInertiaA = rbA.inverseMass;
+		float linearInertiaA = ftA.inverseMass;
 		totalInertia += angularInertiaA + linearInertiaA;
 
 		Vector3 angularInertiaWorldB = glm::cross(relativePositionB, contact.normal);
@@ -54,7 +57,7 @@ namespace Reality
 		angularInertiaWorldB = glm::cross(angularInertiaWorldB, relativePositionB);
 
 		float angularInertiaB = glm::dot(angularInertiaWorldB, contact.normal);
-		float linearInertiaB = rbB.inverseMass;
+		float linearInertiaB = ftB.inverseMass;
 		totalInertia += angularInertiaB + linearInertiaB;
 
 		// Total Moves
@@ -110,7 +113,11 @@ namespace Reality
 		Vector3 rotationA = rotationPerMoveA * angularMoveA;
 
 		glm::quat rotationQuatA = glm::quat(0, rotationA.x, rotationA.y, rotationA.z);
-		transformA.SetOrientation(glm::normalize(transformA.GetOrientation() + 0.5f * rotationQuatA * transformA.GetOrientation()));
+		glm::quat finalOrientationA = transformA.GetOrientation() + 0.5f * rotationQuatA * transformA.GetOrientation();
+		if (glm::length(finalOrientationA) > 0)
+		{
+			transformA.SetOrientation(glm::normalize(finalOrientationA));
+		}
 
 		// B
 		Vector3 impulsiveTorqueB = glm::cross(relativePositionB, contact.normal);
@@ -120,15 +127,21 @@ namespace Reality
 		Vector3 rotationB = rotationPerMoveB * angularMoveB;
 
 		glm::quat rotationQuatB = glm::quat(0, rotationB.x, rotationB.y, rotationB.z);
-		transformB.SetOrientation(glm::normalize(transformB.GetOrientation() + 0.5f * rotationQuatB * transformB.GetOrientation()));
+		glm::quat finalOrientationB = transformB.GetOrientation() + 0.5f * rotationQuatB * transformB.GetOrientation();
+		if (glm::length(finalOrientationB) > 0)
+		{
+			transformB.SetOrientation(glm::normalize(finalOrientationB));
+		}
 		contact.normal *= -1;
 
 	}
 	void ContactResolutionSystem::ResolveVelocity(ContactEvent & contact)
 	{
 		// Get Rigidbodies involved
-		auto& rbA = contact.entityA.getComponent<RigidBodyComponent>();
-		auto& rbB = contact.entityB.getComponent<RigidBodyComponent>();
+		auto& rbA = contact.entityA.getComponent<RigidbodyComponent>();
+		auto& rbB = contact.entityB.getComponent<RigidbodyComponent>();
+		auto& ftA = contact.entityA.getComponent<ForceAndTorqueAccumulatorComponent>();
+		auto& ftB = contact.entityB.getComponent<ForceAndTorqueAccumulatorComponent>();
 		auto& transformA = contact.entityA.getComponent<TransformComponentV2>();
 		auto& transformB = contact.entityB.getComponent<TransformComponentV2>();
 
@@ -149,8 +162,8 @@ namespace Reality
 		Vector3 relativePositionB = contact.worldPoint2 - transformB.GetPosition();
 
 		// World Inertia Tensors
-		Mat3 worldInvInertiaTensorA = rbA.worldInverseInertiaTensor(transformA.GetRotationMatrix());
-		Mat3 worldInvInertiaTensorB = rbB.worldInverseInertiaTensor(transformB.GetRotationMatrix());
+		Mat3 worldInvInertiaTensorA = ftA.GetWorldInverseInertiaTensor(transformA.GetRotationMatrix());
+		Mat3 worldInvInertiaTensorB = ftB.GetWorldInverseInertiaTensor(transformB.GetRotationMatrix());
 
 		// Calculate velocity Per Unit Impulse
 		// Body A	
@@ -159,7 +172,7 @@ namespace Reality
 		Vector3 deltaVelWorldA = glm::cross(rotationPerUnitImpulseA, relativePositionA);
 
 		float deltaVel = glm::dot(deltaVelWorldA, contact.normal);
-		deltaVel += rbA.inverseMass;
+		deltaVel += ftA.inverseMass;
 
 		// Body B
 		Vector3 torquePerUnitImpulseB = glm::cross(relativePositionB, contact.normal);
@@ -167,7 +180,7 @@ namespace Reality
 		Vector3 deltaVelWorldB = glm::cross(rotationPerUnitImpulseB, relativePositionB);
 
 		deltaVel += glm::dot(deltaVelWorldB, contact.normal);
-		deltaVel += rbB.inverseMass;
+		deltaVel += ftB.inverseMass;
 
 		// Closing Velocity
 		Vector3 velocityA = glm::cross(rbA.angularVelocity, relativePositionA);
@@ -191,13 +204,13 @@ namespace Reality
 
 		// Calculate Velocity Change
 		// A
-		Vector3 velocityChangeA = impulseA * rbA.inverseMass;
+		Vector3 velocityChangeA = impulseA * ftA.inverseMass;
 		Vector3 rotationalTorqueA = glm::cross(relativePositionA, impulseA);
 		Vector3 angularVelocityChangeA = worldInvInertiaTensorA * rotationalTorqueA;
 		rbA.velocity += velocityChangeA;
 		rbA.angularVelocity += angularVelocityChangeA;
 		// B
-		Vector3 velocityChangeB = impulseB * rbB.inverseMass;
+		Vector3 velocityChangeB = impulseB * ftB.inverseMass;
 		Vector3 rotationalTorqueB = glm::cross(relativePositionB, impulseB);
 		Vector3 angularVelocityChangeB = worldInvInertiaTensorB * rotationalTorqueB;
 		rbB.velocity += velocityChangeB;

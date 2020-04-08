@@ -1,16 +1,16 @@
-#include "RigidBodySystem.h"
-#include "RigidBodyData.h"
+#include "RigidbodySystem.h"
+#include "RigidbodyData.h"
 
 namespace Reality
 {
-	RigidBodySystem::RigidBodySystem(rp3d::CollisionWorld& _rp3dWorld)
+	RigidbodySystem::RigidbodySystem(rp3d::CollisionWorld& _rp3dWorld)
 		:rp3dWorld(_rp3dWorld)
 	{
 		requireComponent<TransformComponentV2>();
-		requireComponent<RigidBodyComponent>();
+		requireComponent<RigidbodyComponent>();
 	}
 
-	void RigidBodySystem::Update(float deltaTime)
+	void RigidbodySystem::Update(float deltaTime)
 	{
 		std::vector<rp3d::CollisionBody*> rp3dBodiesTemp;
 		std::vector<int> aliveIds;
@@ -19,7 +19,7 @@ namespace Reality
 
 		for (auto e : getEntities())
 		{
-			auto &rigidbody = e.getComponent<RigidBodyComponent>();
+			auto &rigidbody = e.getComponent<RigidbodyComponent>();
 			auto &transform = e.getComponent<TransformComponentV2>();
 
 			// Update RP3D Ids
@@ -51,13 +51,9 @@ namespace Reality
 			id++;
 
 			// Update velocity from accelarartion
-			rigidbody.velocity += rigidbody.accelaration * deltaTime;
-			rigidbody.angularVelocity += rigidbody.angularAccelaration * deltaTime;
+			rigidbody.velocity += (rigidbody.acceleration) * deltaTime;
+			rigidbody.angularVelocity += rigidbody.angularAcceleration * deltaTime;
 
-			// Damping
-			rigidbody.velocity *= pow(1.0f - rigidbody.linearDamping, deltaTime);
-			rigidbody.angularVelocity *= pow(1.0f - rigidbody.angularDamping, deltaTime);
-			
 			transform.SetPosition(transform.GetPosition() + rigidbody.velocity * deltaTime);
 			glm::quat angularVelocityQuat = glm::quat(0, rigidbody.angularVelocity.x, rigidbody.angularVelocity.y, rigidbody.angularVelocity.z);
 			getWorld().data.renderUtil->DrawLine(transform.GetPosition(), transform.GetPosition() + rigidbody.angularVelocity, Color::Blue);

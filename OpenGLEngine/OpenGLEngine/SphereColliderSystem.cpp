@@ -1,5 +1,6 @@
 #include "SphereColliderSystem.h"
-#include "RigidBodyComponent.h"
+#include "RigidbodyComponent.h"
+#include "ForceAndTorqueAccumulatorComponent.h"
 #include "RigidBodySystem.h"
 
 namespace Reality
@@ -21,9 +22,9 @@ namespace Reality
 		{
 			auto &sphereCollider = e.getComponent<SphereColliderComponent>();
 
-			if (sphereCollider.body.isAlive() && sphereCollider.body.hasComponent<RigidBodyComponent>())
+			if (sphereCollider.body.isAlive() && sphereCollider.body.hasComponent<RigidbodyComponent>())
 			{
-				auto &body = sphereCollider.body.getComponent<RigidBodyComponent>();
+				auto &body = sphereCollider.body.getComponent<RigidbodyComponent>();
 
 				// Update RP3D Ids
 				// Calculate local rp3d transform
@@ -33,7 +34,7 @@ namespace Reality
 				rp3d::Quaternion initOrientation = rp3d::Quaternion::identity();
 				rp3d::Transform rp3dtransform(initPosition, initOrientation);
 
-				auto rp3dBody = getWorld().getSystemManager().getSystem<RigidBodySystem>().rp3dBodies[body.rp3dId];
+				auto rp3dBody = getWorld().getSystemManager().getSystem<RigidbodySystem>().rp3dBodies[body.rp3dId];
 				// If new rigidbody, create an entry
 				if (sphereCollider.rp3dId < 0)
 				{
@@ -44,6 +45,11 @@ namespace Reality
 					rp3d::ProxyShape * proxyShape = rp3dBody->addCollisionShape(shape, rp3dtransform);
 					proxyShape->setUserData(&sphereCollider);
 					rp3dShapesTemp.push_back(proxyShape);
+					if (sphereCollider.body.hasComponent<ForceAndTorqueAccumulatorComponent>())
+					{
+						auto& forceAndTorque = sphereCollider.body.getComponent<ForceAndTorqueAccumulatorComponent>();
+						forceAndTorque.inertiaTensor += Mat3( (2.0f / 5.0f) * pow(sphereCollider.radius, 2)  / forceAndTorque.inverseMass);
+					}
 					sphereCollider.rp3dId = id;
 				}
 				else if (sphereCollider.body.isAlive())
