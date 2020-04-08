@@ -21,7 +21,7 @@ namespace Reality
 			{
 				if (glfwGetKey(getWorld().data.renderUtil->window->glfwWindow, key) == GLFW_PRESS)
 				{
-					control.controlSetting += control.controlSpeed * deltaTime;
+					control.controlSetting += control.controlSpeed;
 					reset = false;
 				}
 			}
@@ -35,7 +35,7 @@ namespace Reality
 			{
 				if (glfwGetKey(getWorld().data.renderUtil->window->glfwWindow, key) == GLFW_PRESS)
 				{
-					control.controlSetting -= control.controlSpeed * deltaTime;
+					control.controlSetting -= control.controlSpeed;
 					reset = false;
 				}
 			}
